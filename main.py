@@ -19,7 +19,7 @@ PLEASE DO NOT USE THIS SCRIPT FOR RATED GAMES
 This script is made for the purpose purely for coding practice and learning image processing,
 I do not condone using this script for malicious purposes such as cheating and/or gaining more rating.
 I am not responsible for any consequences led by the usage of this script.
-I encourage the usage of this bot to play against a bot
+I encourage the usage of this bot to play against another bot.
 '''
 
 bbox = (601,201,1225, 822) #bounding area of the chess board (top left x, top left y, bottom right x, bottom right y)
