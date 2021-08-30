@@ -6,8 +6,8 @@ import imutils
 import pyautogui as ptg
 from skimage.metrics import structural_similarity as compare_ssim
 
-bbox = (601,201,1225, 822)
-length = 79
+bbox = (376,209,1146, 978) #bounding area of the chess board (top left x, top left y, bottom right x, bottom right y)
+length = (bbox[2] - bbox[0])//8
 
 '''
 this file is used for testing + debugging
@@ -79,12 +79,19 @@ def determine_color(x,y,image):
         ending_y = bbox[3]-bbox[1]
 
     img = image[starting_y:ending_y,starting_x:ending_x]
+
+    cv2.imshow('img', img)
+    cv2.waitKey(0)
     
-    white_pixels = np.sum(img == 255)
-    black_pixels = np.sum(img == 0)
-    if white_pixels > 500:
+    white_pixels = np.count_nonzero((img >= [245, 245, 245]).all(axis = 2))
+    black_pixels = np.count_nonzero((img <= [88,85,84]).all(axis = 2))
+
+    #print('white',white_pixels)
+    #print('black',black_pixels)
+
+    if white_pixels > 300:
         return "white"
-    if black_pixels > 500:
+    if black_pixels > 300:
         return "black"
     return None
 
@@ -112,7 +119,7 @@ def playing_color():
     return play_color, opponent_color
 
 #play out the move the AI suggested on the chess board
-def play_move(player_color,before, after):
+def play_move(player_color,before, after, image):
     before_column = before[0]
     before_row = before[1]
 
@@ -142,7 +149,31 @@ def play_move(player_color,before, after):
     time.sleep(0.1)
     ptg.dragTo(after_x, after_y, 0.1,button='left')
     if (after_row == '8' and player_color == 'white' and before_row == '7') or (after_row == '1' and player_color == 'black' and before_row == '2'):
-        ptg.click()
+        if identify_pawn(image, before_x, before_y):
+            ptg.click()
+
+def identify_pawn(image, cX,cY):
+    img = image[cY-length//2:cY+length//2, cX-length//2:cX+length//2]
+
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    template1 = cv2.imread('pawn1.png',0)
+    template2 = cv2.imread('pawn2.png', 0)
+    template3 = cv2.imread('pawn3.png', 0)
+    template4 = cv2.imread('pawn4.png', 0)
+    w, h = template1.shape[::-1]
+    res1 = cv2.matchTemplate(img_gray,template1,cv2.TM_CCOEFF_NORMED)
+    res2 = cv2.matchTemplate(img_gray,template2,cv2.TM_CCOEFF_NORMED)
+    res3 = cv2.matchTemplate(img_gray,template3,cv2.TM_CCOEFF_NORMED)
+    res4 = cv2.matchTemplate(img_gray,template4,cv2.TM_CCOEFF_NORMED)
+    threshold = 0.8
+    loc1 = np.where( res1 >= threshold)
+    loc2 = np.where( res2 >= threshold)
+    loc3 = np.where( res3 >= threshold)
+    loc4 = np.where( res4 >= threshold)
+
+    loc = np.concatenate((loc1, loc2, loc3, loc4), axis=1)
+
+    return len(loc[0]) > 0
 
 #correctly identify movement of chess pieces when castling
 def on_castle(array, opponent_color):
@@ -161,7 +192,6 @@ def on_castle(array, opponent_color):
             if c[0] == 'a1':
                 queen_side = True
         
-    
     new_array = array[:]
     if king_side and opponent_color == 'black':
         for index, array1 in enumerate(new_array):
@@ -175,11 +205,11 @@ def on_castle(array, opponent_color):
     
     elif king_side and opponent_color == 'white':
         for index, array1 in enumerate(new_array):
-            if array1[0] != 'e1' and array1[0] != 'c1':
+            if array1[0] != 'e1' and array1[0] != 'g1':
                 new_array[index] = []
     elif queen_side and opponent_color == 'white':
         for index, array1 in enumerate(new_array):
-            if array1[0] != 'e1' and array1[0] != 'g1':
+            if array1[0] != 'e1' and array1[0] != 'c1':
                 new_array[index] = []
     
     while [] in new_array: new_array.remove([])
@@ -197,6 +227,7 @@ def fix_coord(pos, opponent_color):
     
     x = columns.index(pos[0]) * length + length // 2
     y = rows.index(pos[1]) * length +  length // 2
+
 
     return x,y
 
@@ -251,6 +282,7 @@ def determine_opponent_move(imageA, imageB, opponent_color):
     print(all_coord)
 
     if len(all_coord) == 4:
+        print('here')
         all_coord = on_castle(all_coord, opponent_color)
     
     for i, coord in enumerate(all_coord):
@@ -262,7 +294,7 @@ def determine_opponent_move(imageA, imageB, opponent_color):
 
     for coordinate in all_coord:
         cX, cY = coordinate[2]
-        
+        print(determine_color(cX,cY, imageA), determine_color(cX,cY, imageB))
         if determine_color(cX,cY, imageA) == opponent_color:
             before_coord = [cX,cY]
         if determine_color(cX,cY, imageB) == opponent_color:
@@ -275,6 +307,51 @@ def determine_opponent_move(imageA, imageB, opponent_color):
     move = f'{before_pos}{after_pos}'
     return move
 
+def opponent_made_first_move(image):
+    row_x = [length*i - length//2 for i in range(1,9)]
+    row_3_y = int(length*2.5)
+    row_4_y = int(length*3.5)
+    started = False
+
+    for x in row_x:
+        if determine_color(x, row_3_y, image) == 'white':
+            started = True
+        if determine_color(x,row_4_y, image) == 'white':
+            started = True
+    return started
+
+def identify_opponent_first_move(image):
+    row_x = [length*i - length//2 for i in range(1,9)]
+    row_1_y = int(length*0.5)
+    row_3_y = int(length*2.5)
+    row_4_y = int(length*3.5)
+
+    on_row_4 = False
+
+    before_coord = []
+    after_coord = []
+
+    for x in row_x:
+        if determine_color(x,row_4_y, image) == 'white':
+            after_coord = [x, row_4_y]
+            before_coord = [x, row_4_y - length * 2]
+            on_row_4 = True
+            
+        if determine_color(x,row_3_y, image) == 'white':
+            after_coord = [x, row_3_y]
+    
+    if not(on_row_4):
+        for x1 in row_x:
+            if determine_color(x1, row_1_y, image) is None:
+                before_coord = [x1, row_1_y]
+    
+    before_pos = get_board_coordinate(before_coord[0], before_coord[1], 'white')
+    after_pos = get_board_coordinate(after_coord[0], after_coord[1], 'white')
+
+    move = f'{before_pos}{after_pos}'
+
+    return move
+
 #move mouse to the left side of the screen to start
 def waiting_to_start():
     while 1:
@@ -284,12 +361,16 @@ def waiting_to_start():
 
 def main():
     global length
-    
-    image1 = cv2.imread('z_before.png')
-    image2 = cv2.imread('z_after.png')
-    move = determine_opponent_move(image1,image2,'black')
 
-    print(f'move: {move}')
+    '''image1 = cv2.imread('z_before.png')
+    image2 = cv2.imread('z_after.png')
+    move = determine_opponent_move(image1,image2,'black')'''
+
+    image = cv2.imread('before_promote.png')
+    #image2 = image[144-50:144+50, 624-50:624+50]
+    
+
+    #print(f'move: {move}')
 
 if __name__ == '__main__':
     main()
