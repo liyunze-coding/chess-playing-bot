@@ -14,7 +14,7 @@ import subprocess
 '''
 Made by Ryan Lee In Zer
 
-This script is specifically designed for https://chess.com, on Windows 10
+This script is specifically designed for https://lichess.org, on Windows 10
 
 PLEASE DO NOT USE THIS SCRIPT FOR RATED GAMES
 
